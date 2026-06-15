@@ -76,8 +76,12 @@
       color: #888;
       font-weight: 700;
     }
+    th.num { text-align: right; }
     td.num { font-family: ui-monospace, monospace; text-align: right; white-space: nowrap; }
     td.name { font-family: ui-monospace, monospace; color: #cdcd6a; }
+
+    .time { font-size: 0.68rem; color: #6c6c78; margin-top: 0.2rem; font-weight: 400; }
+    .time.stale { color: #e0b66a; }
 
     .pill {
       display: inline-block;
@@ -156,6 +160,12 @@
 
     let msgId = 0;
 
+    // Defeat browser caching so edits to the source/minified files on disk are
+    // always reflected — otherwise an emptied .min.js can still run its cached
+    // old contents and spuriously "pass".
+    const bust = (path) =>
+      path + (path.includes("?") ? "&" : "?") + "v=" + Date.now() + "_" + ++msgId;
+
     // Load a script into a sandboxed iframe and return its window.__result.
     function runFile(path) {
       return new Promise((resolve) => {
@@ -167,7 +177,7 @@
           "<!doctype html><html><head><meta charset='utf-8'></head><body>" +
           "<scr" + "ipt>window.__result=null;window.__error=null;" +
           "window.onerror=function(m){window.__error=String(m);return true;};</scr" + "ipt>" +
-          "<scr" + "ipt src='" + path + "' onerror=\"window.__error='__MISSING__'\"></scr" + "ipt>" +
+          "<scr" + "ipt src='" + bust(path) + "' onerror=\"window.__error='__MISSING__'\"></scr" + "ipt>" +
           "<scr" + "ipt>parent.postMessage({__minifyjs:true,id:" + id +
           ",result:window.__result,error:window.__error},'*');</scr" + "ipt>" +
           "</body></html>";
@@ -186,24 +196,36 @@
       });
     }
 
-    // Best-effort byte size; fetch of file:// is blocked in some browsers.
-    async function byteSize(path) {
+    // Best-effort size + last-modified time. Both come from one request; the
+    // Last-Modified header is served over HTTP but not on file:// (and fetch of
+    // file:// is blocked in some browsers entirely — hence the "—" fallback).
+    async function fileInfo(path) {
       try {
-        const r = await fetch(path);
-        if (!r.ok) return null;
-        return new Blob([await r.text()]).size;
+        const r = await fetch(bust(path), { cache: "no-store" });
+        if (!r.ok) return { size: null, modified: null };
+        const size = new Blob([await r.text()]).size;
+        const lm = r.headers.get("last-modified");
+        const modified = lm ? new Date(lm) : null;
+        return { size, modified: isNaN(modified) ? null : modified };
       } catch {
-        return null;
+        return { size: null, modified: null };
       }
     }
 
     const fmtBytes = (n) =>
       n == null ? "—" : n < 1024 ? n + " B" : (n / 1024).toFixed(1) + " KB";
 
+    const fmtTime = (d) =>
+      d == null ? "—" : d.toLocaleString(undefined, {
+        month: "short", day: "numeric",
+        hour: "2-digit", minute: "2-digit", second: "2-digit",
+      });
+
     const stable = (v) => JSON.stringify(v, null, 2);
 
-    function row(test, orig, min, origSize, minSize) {
+    function row(test, orig, min, origInfo, minInfo) {
       const tr = document.createElement("tr");
+      const origSize = origInfo.size, minSize = minInfo.size;
 
       let saved = "—";
       if (origSize != null && minSize != null && origSize > 0) {
@@ -211,26 +233,39 @@
         saved = `<span class="saving">${pct}%</span>`;
       }
 
+      // Flag a minified file older than its source — it needs regenerating.
+      const stale =
+        origInfo.modified && minInfo.modified && minInfo.modified < origInfo.modified;
+
       let status, statusClass, detail = "";
+
+      const mismatchDetail = () =>
+        `<div class="diff-grid">` +
+        `<div><h4>Original</h4><pre>${stable(orig.result)}</pre></div>` +
+        `<div><h4>Minified</h4><pre>${stable(min.result)}</pre></div></div>`;
 
       if (orig.error === "__MISSING__") {
         status = "source missing"; statusClass = "error";
       } else if (orig.error) {
         status = "source threw"; statusClass = "error";
         detail = `<pre>${orig.error}</pre>`;
-      } else if (min.error === "__MISSING__" || min.result === null && min.error === null) {
+      } else if (orig.result === null) {
+        status = "source produced no result"; statusClass = "error";
+      } else if (min.error === "__MISSING__") {
+        // Genuinely absent file — not yet generated.
         status = "not generated"; statusClass = "missing";
       } else if (min.error) {
         status = "minified threw"; statusClass = "error";
         detail = `<pre>${min.error}</pre>`;
+      } else if (min.result === null) {
+        // File is present (it loaded) but produced no result — empty or broken.
+        status = "no output"; statusClass = "fail";
+        detail = mismatchDetail();
       } else if (stable(orig.result) === stable(min.result)) {
         status = "pass"; statusClass = "pass";
       } else {
         status = "MISMATCH"; statusClass = "fail";
-        detail =
-          `<div class="diff-grid">` +
-          `<div><h4>Original</h4><pre>${stable(orig.result)}</pre></div>` +
-          `<div><h4>Minified</h4><pre>${stable(min.result)}</pre></div></div>`;
+        detail = mismatchDetail();
       }
 
       const detailsBlock = detail
@@ -239,10 +274,16 @@
             ? `<details><summary>result</summary><pre>${stable(orig.result)}</pre></details>`
             : "");
 
+      const sizeCell = (size, modified, flagStale) =>
+        `<td class="num">${fmtBytes(size)}` +
+        `<div class="time${flagStale ? " stale" : ""}"` +
+        (flagStale ? ` title="Older than the source — regenerate this file"` : "") +
+        `>${fmtTime(modified)}${flagStale ? " ⚠" : ""}</div></td>`;
+
       tr.innerHTML =
         `<td class="name">${test.name}</td>` +
-        `<td class="num">${fmtBytes(origSize)}</td>` +
-        `<td class="num">${fmtBytes(minSize)}</td>` +
+        sizeCell(origSize, origInfo.modified, false) +
+        sizeCell(minSize, minInfo.modified, stale) +
         `<td class="num">${saved}</td>` +
         `<td><span class="pill ${statusClass}">${status}</span>${detailsBlock}</td>`;
 
@@ -260,13 +301,13 @@
 
       for (const test of tests) {
         const min = minPath(test.src);
-        const [orig, minRes, oSize, mSize] = await Promise.all([
+        const [orig, minRes, oInfo, mInfo] = await Promise.all([
           runFile(test.src),
           runFile(min),
-          byteSize(test.src),
-          byteSize(min),
+          fileInfo(test.src),
+          fileInfo(min),
         ]);
-        const r = row(test, orig, minRes, oSize, mSize);
+        const r = row(test, orig, minRes, oInfo, mInfo);
         rows.appendChild(r.tr);
         if (r.ran) ran++;
         if (r.pass) passed++;

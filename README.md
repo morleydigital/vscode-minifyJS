@@ -8,6 +8,10 @@ Whilst there are a number of JavaScript minification extensions available on the
 ### Why we chose terser as a minification library
 terser is the de-facto standard JavaScript minifier in the modern JavaScript ecosystem, used under the hood by webpack, Rollup, Vite, and many other build tools. It is actively maintained, well documented, and supports modern ECMAScript syntax, producing reliably small output through compression (dead-code elimination, constant folding) and name mangling.
 
+## Download and install
+
+You can download the packaged extension (.vsix) directly from the [releases page](https://github.com/morleydigital/vscode-minifyJS/releases), or via the [VSCode Marketplace](https://marketplace.visualstudio.com/items?itemName=MorleyDigitalUK.minifyjs) or [Open VSX](https://open-vsx.org/extension/MorleyDigitalUK/minifyjs). Alternatively, see below for instructions for packaging from source.
+
 ## Usage
 
 - **Command palette** → `Minify Current JavaScript File` — minifies the currently open JavaScript file immediately.
