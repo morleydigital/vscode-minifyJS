@@ -1,0 +1,95 @@
+{
+	"name": "minifyjs",
+	"displayName": "minifyJS",
+	"description": "Minify JavaScript files using the terser minification library. Minify the active file with a command or automatically on save, with optional source map generation.",
+	"version": "1.0.0",
+	"publisher": "MorleyDigitalUK",
+	"engines": {
+		"vscode": "^1.75.0"
+	},
+	"categories": [
+		"Other"
+	],
+	"keywords": [
+		"JS",
+		"JavaScript",
+		"minify",
+		"minification",
+		"terser",
+		"auto"
+	],
+	"activationEvents": [
+		"onCommand:minifyjs.minify",
+		"onLanguage:javascript"
+	],
+	"icon": "icon.png",
+	"galleryBanner": {
+		"color": "#e8e030",
+		"theme": "light"
+	},
+	"main": "./extension",
+	"scripts": {
+		"package": "npx --yes @vscode/vsce package --readme-path README.vsce.md"
+	},
+	"contributes": {
+		"commands": [
+			{
+				"command": "minifyjs.minify",
+				"title": "Minify Current JavaScript File",
+				"category": "minifyJS"
+			},
+			{
+				"command": "minifyjs.showVersions",
+				"title": "Show terser Version",
+				"category": "minifyJS"
+			}
+		],
+		"configuration": {
+			"type": "object",
+			"title": "minifyJS",
+			"properties": {
+				"minifyjs.minifyOnSave": {
+					"type": "string",
+					"enum": [
+						"No",
+						"Existing",
+						"All"
+					],
+					"markdownEnumDescriptions": [
+						"Do not minify file on save",
+						"Minify previously minified files (files with an existing .min.js file) on save",
+						"Minify all files on save"
+					],
+					"default": "No",
+					"description": "Whether or not to automatically minify JavaScript files on save"
+				},
+				"minifyjs.generateSourceMap": {
+					"type": "boolean",
+					"default": false,
+					"description": "Whether or not to generate a source map for the minified JavaScript file"
+				},
+				"minifyjs.successNotificationStatusBar": {
+					"type": "boolean",
+					"default": false,
+					"description": "Whether or not to show a notification in the status bar on successful minification"
+				},
+				"minifyjs.successNotificationInformationMessage": {
+					"type": "boolean",
+					"default": false,
+					"description": "Whether or not to show an information message on successful minification"
+				}
+			}
+		}
+	},
+	"license": "MIT",
+	"dependencies": {
+		"terser": "5.48.0"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/morleydigital/vscode-minifyJS.git"
+	},
+	"bugs": {
+		"url": "https://github.com/morleydigital/vscode-minifyJS/issues"
+	}
+}

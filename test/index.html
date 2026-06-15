@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>minifyJS — Minification Test Runner</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 0.875rem;
+      background: #0f0f13;
+      color: #e2e2e8;
+      min-height: 100dvh;
+      padding: 1.5rem;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      flex-wrap: wrap;
+      margin-bottom: 1.25rem;
+    }
+
+    h1 {
+      font-size: 1rem;
+      font-weight: 700;
+      color: #fff;
+      white-space: nowrap;
+    }
+
+    h1 span { color: #e8e030; }
+
+    .summary {
+      font-size: 0.8rem;
+      font-weight: 600;
+      padding: 0.3em 0.8em;
+      border-radius: 999px;
+      background: #25252f;
+      border: 1px solid #3a3a48;
+      white-space: nowrap;
+    }
+    .summary.pass { background: #16331f; border-color: #2e7d46; color: #79e29b; }
+    .summary.fail { background: #34161a; border-color: #8a3540; color: #ff97a3; }
+
+    button {
+      margin-left: auto;
+      padding: 0.4em 1em;
+      background: #25252f;
+      color: #e2e2e8;
+      border: 1px solid #3a3a48;
+      border-radius: 0.375rem;
+      font: inherit;
+      font-size: 0.8rem;
+      cursor: pointer;
+    }
+    button:hover { background: #2f2f3a; }
+
+    p.intro { color: #888; max-width: 70ch; margin-bottom: 1.25rem; line-height: 1.6; }
+    p.intro code { color: #cdcd6a; font-family: ui-monospace, monospace; }
+
+    table { width: 100%; border-collapse: collapse; }
+
+    th, td {
+      text-align: left;
+      padding: 0.6em 0.8em;
+      border-bottom: 1px solid #2a2a35;
+      vertical-align: top;
+    }
+    th {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #888;
+      font-weight: 700;
+    }
+    td.num { font-family: ui-monospace, monospace; text-align: right; white-space: nowrap; }
+    td.name { font-family: ui-monospace, monospace; color: #cdcd6a; }
+
+    .pill {
+      display: inline-block;
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 0.2em 0.7em;
+      border-radius: 999px;
+      white-space: nowrap;
+    }
+    .pill.pass    { background: #16331f; color: #79e29b; }
+    .pill.fail    { background: #34161a; color: #ff97a3; }
+    .pill.missing { background: #33291a; color: #e0b66a; }
+    .pill.error   { background: #34161a; color: #ff97a3; }
+
+    .saving { color: #79e29b; }
+
+    details { margin-top: 0.4rem; }
+    summary { cursor: pointer; color: #888; font-size: 0.75rem; }
+    pre {
+      margin-top: 0.4rem;
+      padding: 0.6rem 0.8rem;
+      background: #18181f;
+      border: 1px solid #2a2a35;
+      border-radius: 0.375rem;
+      font-family: ui-monospace, monospace;
+      font-size: 0.72rem;
+      line-height: 1.5;
+      color: #c8c8d4;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .diff-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; }
+    .diff-grid h4 { font-size: 0.7rem; color: #888; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 0.2rem; }
+    @media (max-width: 640px) { .diff-grid { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>minifyJS <span>test runner</span></h1>
+    <span class="summary" id="summary">Running…</span>
+    <button id="rerun">Re-run</button>
+  </header>
+
+  <p class="intro">
+    Each test file assigns a deterministic result to <code>window.__result</code>.
+    The runner executes the <strong>original</strong> and the <strong>minified</strong>
+    file in isolated iframes and compares the two results — if they match, terser
+    preserved the program's behaviour. Generate the <code>.min.js</code> files first
+    by running <strong>Minify Current JavaScript File</strong> on each source file
+    (or saving with <code>minifyjs.minifyOnSave</code> enabled).
+  </p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Test file</th>
+        <th class="num">Original</th>
+        <th class="num">Minified</th>
+        <th class="num">Saved</th>
+        <th>Behaviour</th>
+      </tr>
+    </thead>
+    <tbody id="rows"></tbody>
+  </table>
+
+  <script>
+    const tests = [
+      { name: "test1-basic.js",     src: "js/test1-basic.js" },
+      { name: "test2-es6.js",       src: "js/test2-es6.js" },
+      { name: "test3-edgecases.js", src: "js/test3-edgecases.js" },
+    ];
+
+    const minPath = (src) => src.replace(/\.js$/, ".min.js");
+
+    let msgId = 0;
+
+    // Load a script into a sandboxed iframe and return its window.__result.
+    function runFile(path) {
+      return new Promise((resolve) => {
+        const id = ++msgId;
+        const iframe = document.createElement("iframe");
+        iframe.style.display = "none";
+
+        const doc =
+          "<!doctype html><html><head><meta charset='utf-8'></head><body>" +
+          "<scr" + "ipt>window.__result=null;window.__error=null;" +
+          "window.onerror=function(m){window.__error=String(m);return true;};</scr" + "ipt>" +
+          "<scr" + "ipt src='" + path + "' onerror=\"window.__error='__MISSING__'\"></scr" + "ipt>" +
+          "<scr" + "ipt>parent.postMessage({__minifyjs:true,id:" + id +
+          ",result:window.__result,error:window.__error},'*');</scr" + "ipt>" +
+          "</body></html>";
+
+        function onMsg(e) {
+          const d = e.data;
+          if (!d || !d.__minifyjs || d.id !== id) return;
+          window.removeEventListener("message", onMsg);
+          iframe.remove();
+          resolve({ result: d.result, error: d.error });
+        }
+        window.addEventListener("message", onMsg);
+
+        iframe.srcdoc = doc;
+        document.body.appendChild(iframe);
+      });
+    }
+
+    // Best-effort byte size; fetch of file:// is blocked in some browsers.
+    async function byteSize(path) {
+      try {
+        const r = await fetch(path);
+        if (!r.ok) return null;
+        return new Blob([await r.text()]).size;
+      } catch {
+        return null;
+      }
+    }
+
+    const fmtBytes = (n) =>
+      n == null ? "—" : n < 1024 ? n + " B" : (n / 1024).toFixed(1) + " KB";
+
+    const stable = (v) => JSON.stringify(v, null, 2);
+
+    function row(test, orig, min, origSize, minSize) {
+      const tr = document.createElement("tr");
+
+      let saved = "—";
+      if (origSize != null && minSize != null && origSize > 0) {
+        const pct = Math.round((1 - minSize / origSize) * 100);
+        saved = `<span class="saving">${pct}%</span>`;
+      }
+
+      let status, statusClass, detail = "";
+
+      if (orig.error === "__MISSING__") {
+        status = "source missing"; statusClass = "error";
+      } else if (orig.error) {
+        status = "source threw"; statusClass = "error";
+        detail = `<pre>${orig.error}</pre>`;
+      } else if (min.error === "__MISSING__" || min.result === null && min.error === null) {
+        status = "not generated"; statusClass = "missing";
+      } else if (min.error) {
+        status = "minified threw"; statusClass = "error";
+        detail = `<pre>${min.error}</pre>`;
+      } else if (stable(orig.result) === stable(min.result)) {
+        status = "pass"; statusClass = "pass";
+      } else {
+        status = "MISMATCH"; statusClass = "fail";
+        detail =
+          `<div class="diff-grid">` +
+          `<div><h4>Original</h4><pre>${stable(orig.result)}</pre></div>` +
+          `<div><h4>Minified</h4><pre>${stable(min.result)}</pre></div></div>`;
+      }
+
+      const detailsBlock = detail
+        ? `<details><summary>details</summary>${detail}</details>`
+        : (statusClass === "pass"
+            ? `<details><summary>result</summary><pre>${stable(orig.result)}</pre></details>`
+            : "");
+
+      tr.innerHTML =
+        `<td class="name">${test.name}</td>` +
+        `<td class="num">${fmtBytes(origSize)}</td>` +
+        `<td class="num">${fmtBytes(minSize)}</td>` +
+        `<td class="num">${saved}</td>` +
+        `<td><span class="pill ${statusClass}">${status}</span>${detailsBlock}</td>`;
+
+      return { tr, pass: statusClass === "pass", ran: statusClass === "pass" || statusClass === "fail" };
+    }
+
+    async function run() {
+      const rows = document.getElementById("rows");
+      const summary = document.getElementById("summary");
+      rows.innerHTML = "";
+      summary.className = "summary";
+      summary.textContent = "Running…";
+
+      let passed = 0, ran = 0;
+
+      for (const test of tests) {
+        const min = minPath(test.src);
+        const [orig, minRes, oSize, mSize] = await Promise.all([
+          runFile(test.src),
+          runFile(min),
+          byteSize(test.src),
+          byteSize(min),
+        ]);
+        const r = row(test, orig, minRes, oSize, mSize);
+        rows.appendChild(r.tr);
+        if (r.ran) ran++;
+        if (r.pass) passed++;
+      }
+
+      if (ran === 0) {
+        summary.textContent = "No minified files — generate them first";
+        summary.classList.add("fail");
+      } else if (passed === ran) {
+        summary.textContent = `${passed}/${tests.length} passed`;
+        summary.classList.add("pass");
+      } else {
+        summary.textContent = `${passed}/${ran} passed`;
+        summary.classList.add("fail");
+      }
+    }
+
+    document.getElementById("rerun").addEventListener("click", run);
+    run();
+  </script>
+
+</body>
+</html>

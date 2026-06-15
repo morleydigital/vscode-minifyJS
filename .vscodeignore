@@ -1,0 +1,21 @@
+# Project / dev files — not needed in the published extension
+CLAUDE.md
+.gitignore
+.claude/**
+.github/**
+test/**
+*.vsix
+
+# GitHub README ships only on GitHub; the Marketplace uses README.vsce.md
+# (selected via `vsce package --readme-path README.vsce.md`)
+README.md
+
+# Trim cruft from bundled production dependencies (keeps runtime code)
+node_modules/**/*.md
+node_modules/**/*.ts
+node_modules/**/*.map
+node_modules/**/.github/**
+node_modules/**/test/**
+node_modules/**/tests/**
+node_modules/**/example/**
+node_modules/**/examples/**

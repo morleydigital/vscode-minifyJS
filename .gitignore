@@ -1,0 +1,8 @@
+node_modules
+*.vsix
+package-lock.json
+.DS_Store
+test/**/*.min.js
+test/**/*.js.map
+CLAUDE.md
+.claude
