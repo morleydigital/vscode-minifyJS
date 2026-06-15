@@ -1,0 +1,22 @@
+# https://docs.github.com/code-security/dependabot/dependabot-version-updates
+# Opens PRs (and notifies watchers) when upstream dependencies publish updates.
+version: 2
+updates:
+  # npm dependencies — terser, @vscode/vsce, etc.
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: "deps"
+
+  # GitHub Actions used in the release workflow (.github/workflows/main.yml)
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    commit-message:
+      prefix: "ci"
