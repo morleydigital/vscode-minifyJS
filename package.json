@@ -83,7 +83,7 @@
 	},
 	"license": "MIT",
 	"dependencies": {
-		"terser": "5.48.0"
+		"terser": "5.50.0"
 	},
 	"repository": {
 		"type": "git",
