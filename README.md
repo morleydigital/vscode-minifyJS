@@ -69,8 +69,21 @@ npm run package
 > in the VS Code "Details" tab). The script uses `npx`, so a global `vsce`
 > install isn't required.
 
+## Known issues
+
+- **Default parameters that reference a shadowed outer variable** are minified incorrectly by terser (both `compress` and `mangle`). If a parameter's default value reads an outer variable, and the function body redeclares a `var` with the same name, terser treats the default as referring to the inner variable:
+
+  ```js
+  var outer = 5;
+  function g(x = outer) { var outer = 1; return x; }
+  g(); // 5 in the source; throws ReferenceError (or returns the wrong value) once minified
+  ```
+
+  This is an upstream terser bug (terser 5.51.0 fixed it, but 5.51.2 rolled the fix back). **Workaround:** rename the inner variable so it doesn't shadow the one used in the default value.
+
 ## Changelog
 - 1.0.0 - Initial release
+- 1.0.1 - Updated terser to 5.51.2
 
 ## Roadmap
 🔲 Add options to customise terser compress/mangle behaviour  

@@ -28,6 +28,18 @@ Output is written to `<filename>.min.js` in the same directory. `.min.js` files 
 | `minifyjs.successNotificationStatusBar` | `false` | Show a status bar message on success |
 | `minifyjs.successNotificationInformationMessage` | `false` | Show an info popup on success |
 
+## Known issues
+
+- **Default parameters that reference a shadowed outer variable** are minified incorrectly by terser (both `compress` and `mangle`). If a parameter's default value reads an outer variable, and the function body redeclares a `var` with the same name, terser treats the default as referring to the inner variable:
+
+  ```js
+  var outer = 5;
+  function g(x = outer) { var outer = 1; return x; }
+  g(); // 5 in the source; throws ReferenceError (or returns the wrong value) once minified
+  ```
+
+  This is an upstream terser bug (terser 5.51.0 fixed it, but 5.51.2 rolled the fix back). **Workaround:** rename the inner variable so it doesn't shadow the one used in the default value.
+
 ## Source & issues
 
 Source code, contributing guidelines, and issue tracker are on [GitHub](https://github.com/morleydigital/vscode-minifyJS/).

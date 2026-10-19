@@ -2,7 +2,7 @@
 	"name": "minifyjs",
 	"displayName": "minifyJS",
 	"description": "Minify JavaScript files using the terser minification library. Minify the active file with a command or automatically on save, with optional source map generation.",
-	"version": "1.0.0",
+	"version": "1.0.1",
 	"publisher": "MorleyDigitalUK",
 	"engines": {
 		"vscode": "^1.75.0"
@@ -83,7 +83,7 @@
 	},
 	"license": "MIT",
 	"dependencies": {
-		"terser": "5.48.0"
+		"terser": "5.51.2"
 	},
 	"repository": {
 		"type": "git",
